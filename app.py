@@ -11,7 +11,12 @@ import plotly.express as px
 import plotly.graph_objects as go
 from dotenv import load_dotenv
 
-
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+except ImportError:
+    st.error("Missing dependencies! Install plotly using: pip install plotly")
+    st.stop()
 # Load environment variables
 load_dotenv()
 
@@ -277,7 +282,7 @@ with st.sidebar:
         st.session_state.response_length = st.selectbox("Response Length", ["Short", "Medium", "Detailed"])
     st.markdown("---")
     st.markdown(
-        f'<a href="http://localhost:3000/" class="resume-builder-link">🚀 Build Your Resume</a>',
+        f'<a href="#" class="resume-builder-link">🚀 Build Your Resume (Coming Soon)</a>',
         unsafe_allow_html=True
     )
 
