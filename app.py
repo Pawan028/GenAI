@@ -1,3 +1,4 @@
+import urllib.parse
 import base64
 import streamlit as st
 import os
@@ -479,7 +480,7 @@ with st.container():
         else:
             st.warning("⚠️ Please upload resume and enter job description")
 
-# Enhanced Chat Interface
+# Modified Chat Interface Section
 st.markdown("## 💬 AI Career Advisor")
 chat_input = st.text_input(" ", placeholder="Ask me anything about your resume...", key="chat_input")
 
@@ -488,12 +489,85 @@ if st.button("Ask AI", key="chat_ask"):
         with st.spinner("💭 Processing..."):
             pdf_content = input_pdf_setup(uploaded_file)
             if pdf_content:
-                response = get_gemini_response(
-                    chat_input, 
-                    pdf_content,
-                    "Provide career advice based on the resume",
-                    temperature=0.3  # More conservative for career advice
-                )
+                # Check if query is job-related
+                job_keywords = ['job', 'vacancy', 'opportunity', 'position', 'hire']
+                if any(kw in chat_input.lower() for kw in job_keywords):
+                    # Extract keywords from resume
+                    keyword_prompt = """Analyze this resume and extract:
+                    1. Top 3 relevant job titles (prioritizing recent experience)
+                    2. Top 5 technical skills
+                    3. Industry/domain (if mentioned)
+                    Return in EXACT format:
+                    Job Titles: [title1, title2, title3]
+                    Skills: [skill1, skill2, ...]
+                    Industry: [industry]"""
+                    
+                    keyword_response = get_gemini_response(
+                        keyword_prompt, 
+                        pdf_content,
+                        "",
+                        temperature=0.2
+                    )
+                    
+                    # Parse response
+                    try:
+                        job_titles = []
+                        skills = []
+                        industry = ""
+                        for line in keyword_response.split('\n'):
+                            if line.startswith('Job Titles:'):
+                                job_titles = [x.strip() for x in line.split(':')[1].strip(' []').split(',')][:3]
+                            elif line.startswith('Skills:'):
+                                skills = [x.strip() for x in line.split(':')[1].strip(' []').split(',')][:5]
+                            elif line.startswith('Industry:'):
+                                industry = line.split(':')[1].strip()
+                    except Exception as e:
+                        st.error(f"Error parsing keywords: {str(e)}")
+                        job_titles = []
+                        skills = []
+                        industry = ""
+
+                    # Generate search queries
+                    search_terms = []
+                    if job_titles:
+                        search_terms.extend(job_titles)
+                    if skills:
+                        search_terms.extend(skills)
+                    if industry:
+                        search_terms.append(industry)
+                    
+                    # Create encoded query string
+                    query = " ".join(search_terms[:8])  # Limit to 8 terms
+                    encoded_query = urllib.parse.quote_plus(query)
+
+                    # Generate portal URLs
+                    portals = {
+                        "LinkedIn": f"https://www.linkedin.com/jobs/search/?keywords={encoded_query}",
+                        "Indeed": f"https://www.indeed.com/jobs?q={encoded_query}",
+                        "Glassdoor": f"https://www.glassdoor.com/Job/jobs.htm?sc.keyword={encoded_query}",
+                        "SimplyHired": f"https://www.simplyhired.com/search?q={encoded_query}",
+                        "Monster": f"https://www.monster.com/jobs/search/?q={encoded_query}"
+                    }
+
+                    # Create response with links
+                    response = "**🔍 Latest Job Opportunities Matching Your Profile:**\n\n"
+                    response += f"*Based on your skills in: {', '.join(skills[:3])}*\n\n"
+                    
+                    for portal, url in portals.items():
+                        response += f"- [{portal} Jobs]({url})\n"
+                    
+                    response += "\n**Pro Tip:** Save these searches and set up email alerts for new postings!"
+                    
+                else:
+                    # Existing career advice handling
+                    response = get_gemini_response(
+                        chat_input, 
+                        pdf_content,
+                        "Provide career advice based on the resume. Keep responses concise and actionable.",
+                        temperature=0.3
+                    )
+                
+                # Add to chat history
                 st.session_state.chat_history.append(("user", chat_input))
                 st.session_state.chat_history.append(("bot", response))
             else:
